@@ -224,6 +224,7 @@ const players = new Map();
 const mobs = new Map();
 const loot = new Map();
 const particles = [];
+const motes = [];
 const rings = [];
 const floaters = [];
 const swings = new Map();
@@ -316,6 +317,41 @@ function buildSprites() {
     }
     SPR.tufts.push(c);
   }
+
+  const [pz, pzg] = makeCanvas(360, 360);
+  pzg.fillStyle = 'rgba(122, 90, 48, .5)';
+  pzg.beginPath(); pzg.arc(180, 180, 170, 0, 7); pzg.fill();
+  for (let i = 0; i < 700; i++) {
+    const a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * 165;
+    const x = 180 + Math.cos(a) * r, y = 180 + Math.sin(a) * r;
+    pzg.fillStyle = `rgba(${100 + Math.random() * 50 | 0}, ${75 + Math.random() * 35 | 0}, ${40 + Math.random() * 20 | 0}, ${0.25 + Math.random() * 0.3})`;
+    pzg.fillRect(x, y, 2, 2);
+  }
+  pzg.strokeStyle = 'rgba(60, 40, 20, .5)';
+  pzg.lineWidth = 6;
+  pzg.beginPath(); pzg.arc(180, 180, 168, 0, 7); pzg.stroke();
+  SPR.plaza = pz;
+
+  const [bu, bug] = makeCanvas(44, 34);
+  const bush = (x, y, r, c1, c2) => {
+    const gr = bug.createRadialGradient(x - r * 0.3, y - r * 0.4, 2, x, y, r);
+    gr.addColorStop(0, c1); gr.addColorStop(1, c2);
+    bug.fillStyle = gr;
+    bug.beginPath(); bug.arc(x, y, r, 0, 7); bug.fill();
+  };
+  bug.fillStyle = 'rgba(0,0,0,.22)';
+  bug.beginPath(); bug.ellipse(22, 30, 18, 4, 0, 0, 7); bug.fill();
+  bush(14, 20, 11, '#3fae5a', '#14532d');
+  bush(28, 16, 13, '#46c265', '#166534');
+  bush(34, 24, 9, '#2f9e4f', '#0c351d');
+  SPR.bush = bu;
+
+  const [pe, peg] = makeCanvas(16, 12);
+  peg.fillStyle = '#8b95a3';
+  peg.beginPath(); peg.ellipse(8, 7, 6, 4, 0.3, 0, 7); peg.fill();
+  peg.fillStyle = '#aab3bf';
+  peg.beginPath(); peg.ellipse(6, 5, 3, 2, 0.3, 0, 7); peg.fill();
+  SPR.pebble = pe;
 
   const [tc, t] = makeCanvas(84, 104);
   t.fillStyle = 'rgba(0,0,0,.25)';
@@ -509,40 +545,90 @@ function buildSprites() {
   SPR.boss = bs;
 }
 
-function makeHero(hue) {
-  if (heroCache.has(hue)) return heroCache.get(hue);
-  const [c, g] = makeCanvas(56, 80);
-  g.fillStyle = 'rgba(0,0,0,.3)';
-  g.beginPath(); g.ellipse(28, 74, 20, 6, 0, 0, 7); g.fill();
-  g.fillStyle = '#2b2b33';
-  rr(g, 18, 64, 9, 10, 3); g.fill();
-  rr(g, 30, 64, 9, 10, 3); g.fill();
-  const armor = g.createLinearGradient(0, 30, 0, 66);
-  armor.addColorStop(0, `hsl(${hue}, 58%, 52%)`);
-  armor.addColorStop(1, `hsl(${hue}, 62%, 28%)`);
-  g.fillStyle = armor;
-  rr(g, 14, 32, 28, 32, 8); g.fill();
-  g.fillStyle = `hsl(${hue}, 55%, 62%)`;
-  rr(g, 18, 34, 20, 10, 4); g.fill();
-  g.fillStyle = '#fbbf24';
-  g.fillRect(14, 56, 28, 4);
-  g.fillStyle = `hsl(${hue}, 50%, 60%)`;
-  g.beginPath(); g.arc(15, 34, 6, 0, 7); g.arc(41, 34, 6, 0, 7); g.fill();
-  g.fillStyle = '#f0c08a';
-  g.beginPath(); g.arc(28, 20, 11, 0, 7); g.fill();
-  g.fillStyle = `hsl(${hue}, 42%, 60%)`;
-  g.beginPath(); g.arc(28, 18, 11, Math.PI, 0); g.fill();
-  g.fillRect(17, 16, 22, 4);
-  g.fillStyle = `hsl(${hue}, 75%, 68%)`;
-  g.beginPath();
-  g.moveTo(28, 2); g.lineTo(24, 12); g.lineTo(32, 12); g.closePath(); g.fill();
-  g.fillStyle = '#1c1917';
-  g.beginPath(); g.arc(33, 21, 1.9, 0, 7); g.arc(38, 21, 1.7, 0, 7); g.fill();
-  g.fillStyle = '#f0c08a';
-  rr(g, 40, 36, 6, 12, 3); g.fill();
-  g.beginPath(); g.arc(43, 50, 3.5, 0, 7); g.fill();
-  heroCache.set(hue, c);
-  return c;
+function makeHeroFrames(cls, hue) {
+  const key = cls + ':' + hue;
+  if (heroCache.has(key)) return heroCache.get(key);
+  const frames = [];
+  const capeC = { knight: '#7f1d1d', mage: '#4c1d95', archer: '#14532d', cleric: '#713f12' }[cls] || '#333';
+  const robe = cls === 'mage' || cls === 'cleric';
+  const hoodC = cls === 'cleric' ? '#e2e8f0' : `hsl(${hue}, 55%, 40%)`;
+  for (let f = 0; f < 2; f++) {
+    const [c, g] = makeCanvas(64, 92);
+    g.fillStyle = 'rgba(0,0,0,.3)';
+    g.beginPath(); g.ellipse(32, 86, 20, 6, 0, 0, 7); g.fill();
+    g.fillStyle = capeC;
+    g.beginPath();
+    g.moveTo(21, 34);
+    g.quadraticCurveTo(32 + (f ? 3 : -3), 52, 18 + (f ? 4 : -2), 74);
+    g.lineTo(46 - (f ? 4 : 2), 74);
+    g.quadraticCurveTo(43, 52, 43, 34);
+    g.closePath(); g.fill();
+    g.fillStyle = 'rgba(0,0,0,.18)';
+    g.beginPath();
+    g.moveTo(24, 36);
+    g.quadraticCurveTo(32 + (f ? 2 : -2), 52, 22 + (f ? 3 : -1), 72);
+    g.lineTo(30, 72);
+    g.quadraticCurveTo(32, 52, 30, 36);
+    g.closePath(); g.fill();
+    if (!robe) {
+      g.fillStyle = '#2b2b33';
+      rr(g, f ? 22 : 26, 74, 9, 11, 3); g.fill();
+      rr(g, f ? 36 : 33, 74, 9, 11, 3); g.fill();
+    }
+    const top = robe ? (cls === 'cleric' ? '#f8fafc' : `hsl(${hue}, 60%, 45%)`) : `hsl(${hue}, 58%, 50%)`;
+    const bot = robe ? (cls === 'cleric' ? '#dbe4ee' : `hsl(${hue}, 62%, 26%)`) : `hsl(${hue}, 62%, 27%)`;
+    const armor = g.createLinearGradient(0, 30, 0, robe ? 80 : 66);
+    armor.addColorStop(0, top); armor.addColorStop(1, bot);
+    g.fillStyle = armor;
+    if (robe) { rr(g, 15, 32, 34, 48, 9); g.fill(); } else { rr(g, 16, 32, 32, 34, 8); g.fill(); }
+    g.fillStyle = cls === 'cleric' ? '#fbbf24' : (robe ? `hsl(${hue}, 70%, 60%)` : '#fbbf24');
+    g.fillRect(robe ? 15 : 16, 58, robe ? 34 : 32, 4);
+    g.fillStyle = 'rgba(255,255,255,.18)';
+    rr(g, robe ? 20 : 21, 35, 12, robe ? 32 : 12, 4); g.fill();
+    if (cls === 'cleric') {
+      g.fillStyle = '#fbbf24';
+      g.beginPath(); g.arc(32, 47, 6, 0, 7); g.fill();
+      g.strokeStyle = '#92400e'; g.lineWidth = 2;
+      g.beginPath(); g.moveTo(32, 42); g.lineTo(32, 52); g.moveTo(27, 47); g.lineTo(37, 47); g.stroke();
+    }
+    g.fillStyle = robe ? top : `hsl(${hue}, 50%, 58%)`;
+    g.beginPath(); g.arc(17, 34, 6, 0, 7); g.arc(47, 34, 6, 0, 7); g.fill();
+    if (cls === 'knight') {
+      g.fillStyle = '#94a3b8';
+      g.beginPath(); g.arc(13, 47, 9, 0, 7); g.fill();
+      g.strokeStyle = '#475569'; g.lineWidth = 2; g.stroke();
+      g.fillStyle = '#fbbf24';
+      g.beginPath(); g.arc(13, 47, 3, 0, 7); g.fill();
+    }
+    if (cls === 'archer') {
+      g.fillStyle = '#6b4423';
+      rr(g, 9, 30, 8, 22, 3); g.fill();
+      g.strokeStyle = '#e7e5e4'; g.lineWidth = 2;
+      for (let i = 0; i < 3; i++) { g.beginPath(); g.moveTo(11 + i * 3, 30); g.lineTo(11 + i * 3, 23); g.stroke(); }
+    }
+    if (cls === 'knight') {
+      g.fillStyle = '#64748b';
+      g.beginPath(); g.arc(32, 17, 11, Math.PI, 0); g.fill();
+      g.fillRect(21, 15, 22, 4);
+      g.fillStyle = '#ef4444';
+      g.beginPath(); g.moveTo(32, 1); g.lineTo(28, 11); g.lineTo(36, 11); g.closePath(); g.fill();
+      g.fillStyle = '#f0c08a';
+      g.beginPath(); g.arc(32, 22, 9, 0, 7); g.fill();
+    } else {
+      g.fillStyle = hoodC;
+      g.beginPath(); g.arc(32, 19, 12, 0, 7); g.fill();
+      g.fillStyle = '#f0c08a';
+      g.beginPath(); g.arc(32, 22, 8.5, 0, 7); g.fill();
+    }
+    g.fillStyle = '#1c1917';
+    g.beginPath(); g.arc(36, 22, 1.9, 0, 7); g.arc(41, 22, 1.7, 0, 7); g.fill();
+    g.fillStyle = '#f0c08a';
+    rr(g, 45, 36, 6, 12, 3); g.fill();
+    g.beginPath(); g.arc(48, 50, 3.5, 0, 7); g.fill();
+    frames.push(c);
+  }
+  heroCache.set(key, frames);
+  return frames;
 }
 
 function drawEmblem() {
@@ -1191,46 +1277,54 @@ function drawWings(x, y, dir, now) {
   ctx.restore();
 }
 
-function drawSword(p, now) {
+function drawWeapon(p, now) {
   const dir = (p.fx || 1) < 0 ? -1 : 1;
+  const cls = p.cls || 'knight';
   const hx = p.x + 17 * dir;
-  const hy = p.y - 26;
+  const hy = p.y - 24;
   const sw = swings.get(p.id);
   let ang;
   if (sw && now - sw < 230) {
     const t = (now - sw) / 230;
     ang = -2.3 + 3.5 * t;
   } else {
-    ang = -0.85;
+    ang = cls === 'archer' ? -0.4 : -0.85;
   }
-  const a = dir < 0 ? Math.PI - ang : ang;
-  const tx = hx + Math.cos(a) * 30;
-  const ty = hy + Math.sin(a) * 30;
   ctx.save();
+  ctx.translate(hx, hy);
+  ctx.rotate(dir < 0 ? Math.PI - ang : ang);
   ctx.lineCap = 'round';
-  const bl = ctx.createLinearGradient(hx, hy, tx, ty);
-  bl.addColorStop(0, '#94a3b8');
-  bl.addColorStop(0.5, '#f1f5f9');
-  bl.addColorStop(1, '#cbd5e1');
-  ctx.strokeStyle = bl;
-  ctx.lineWidth = 5;
-  ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(tx, ty); ctx.stroke();
-  ctx.fillStyle = '#f8fafc';
-  ctx.beginPath();
-  ctx.moveTo(tx, ty);
-  ctx.lineTo(tx - Math.cos(a - 0.5) * 9, ty - Math.sin(a - 0.5) * 9);
-  ctx.lineTo(tx - Math.cos(a + 0.5) * 9, ty - Math.sin(a + 0.5) * 9);
-  ctx.closePath(); ctx.fill();
-  ctx.strokeStyle = '#fbbf24';
-  ctx.lineWidth = 4;
-  const gx = hx - Math.cos(a) * 4, gy = hy - Math.sin(a) * 4;
-  ctx.beginPath();
-  ctx.moveTo(gx - Math.cos(a + Math.PI / 2) * 7, gy - Math.sin(a + Math.PI / 2) * 7);
-  ctx.lineTo(gx + Math.cos(a + Math.PI / 2) * 7, gy + Math.sin(a + Math.PI / 2) * 7);
-  ctx.stroke();
-  ctx.strokeStyle = '#6b4423';
-  ctx.lineWidth = 4;
-  ctx.beginPath(); ctx.moveTo(hx - Math.cos(a) * 4, hy - Math.sin(a) * 4); ctx.lineTo(hx - Math.cos(a) * 10, hy - Math.sin(a) * 10); ctx.stroke();
+  if (cls === 'knight') {
+    const bl = ctx.createLinearGradient(0, 0, 34, 0);
+    bl.addColorStop(0, '#94a3b8');
+    bl.addColorStop(0.5, '#f1f5f9');
+    bl.addColorStop(1, '#cbd5e1');
+    ctx.strokeStyle = bl; ctx.lineWidth = 6;
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(34, 0); ctx.stroke();
+    ctx.fillStyle = '#f8fafc';
+    ctx.beginPath(); ctx.moveTo(34, 0); ctx.lineTo(25, -5); ctx.lineTo(25, 5); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#fbbf24'; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.moveTo(-2, -7); ctx.lineTo(-2, 7); ctx.stroke();
+    ctx.strokeStyle = '#6b4423'; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.moveTo(-2, 0); ctx.lineTo(-9, 0); ctx.stroke();
+  } else if (cls === 'archer') {
+    ctx.strokeStyle = '#8b5a2b'; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.arc(6, 0, 16, -Math.PI / 2, Math.PI / 2); ctx.stroke();
+    ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(6, -16); ctx.lineTo(6, 16); ctx.stroke();
+  } else {
+    const isMage = cls === 'mage';
+    ctx.strokeStyle = '#6b4423'; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.moveTo(-8, 0); ctx.lineTo(30, 0); ctx.stroke();
+    ctx.fillStyle = isMage ? '#c084fc' : '#fde047';
+    ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 12;
+    ctx.beginPath(); ctx.arc(32, 0, isMage ? 5.5 : 6, 0, 7); ctx.fill();
+    ctx.shadowBlur = 0;
+    if (!isMage) {
+      ctx.strokeStyle = '#92400e'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(32, -4); ctx.lineTo(32, 4); ctx.moveTo(28, 0); ctx.lineTo(36, 0); ctx.stroke();
+    }
+  }
   ctx.restore();
 }
 
@@ -1239,12 +1333,15 @@ function drawPlayer(p, now) {
   const bob = Math.sin(now / 160 + p.id * 2) * 1.5;
   const yBase = p.y + 12 + bob * 0.3;
   const dir = (p.fx || 1) < 0 ? -1 : 1;
-  const img = makeHero(p.c);
+  const moving = Math.abs(p.x - (p.px === undefined ? p.x : p.px)) + Math.abs(p.y - (p.py === undefined ? p.y : p.py)) > 0.4;
+  p.px = p.x; p.py = p.y;
+  const frames = makeHeroFrames(p.cls || 'knight', p.c);
+  const img = frames[moving ? Math.floor(now / 130 + p.id) % 2 : 0];
   if (p.level >= 5) drawWings(p.x, yBase, dir, now);
   drawShadow(p.x, p.y + 12, 17);
   const flash = p.flash && now - p.flash < 90;
   drawSprite(img, p.x, yBase, dir < 0, flash);
-  if (p.id === myId || p.ew) drawSword(p, now);
+  drawWeapon(p, now);
   ctx.textAlign = 'center';
   ctx.font = 'bold 12px system-ui';
   ctx.strokeStyle = 'rgba(0,0,0,.8)';
@@ -1282,7 +1379,19 @@ function drawMob(m, now) {
   const base = m.ty === 'boss' ? 22 : 12;
   drawShadow(m.x, m.y + base, m.ty === 'boss' ? 40 : 18);
   const flash = m.flash && now - m.flash < 90;
-  drawSprite(img, m.x, m.y + base + bob * 0.3, false, flash);
+  const squash = m.ty === 'slime' ? 1 + Math.sin(now / 170 + m.id) * 0.07
+    : m.ty === 'boss' ? 1 + Math.sin(now / 420 + m.id) * 0.025
+    : 1 + Math.sin(now / 260 + m.id) * 0.03;
+  ctx.save();
+  ctx.translate(m.x, m.y + base + bob * 0.3);
+  ctx.scale(2 - squash, squash);
+  ctx.drawImage(img, -img.width / 2, -img.height);
+  if (flash) {
+    ctx.filter = 'brightness(2.6) saturate(0.4)';
+    ctx.drawImage(img, -img.width / 2, -img.height);
+    ctx.filter = 'none';
+  }
+  ctx.restore();
   if (m.hp < m.maxHp) {
     const w = m.ty === 'boss' ? 74 : 38;
     const by = m.y - (m.ty === 'boss' ? 66 : 42);
@@ -1472,6 +1581,7 @@ function frame(now) {
 
   ctx.fillStyle = SPR.groundPattern;
   ctx.fillRect(camX - 64, camY - 64, canvas.width + 128, canvas.height + 128);
+  ctx.drawImage(SPR.plaza, spawn.x - 180, spawn.y - 180);
 
   const T = 64;
   const x0 = Math.max(0, Math.floor((camX - 40) / T)), y0 = Math.max(0, Math.floor((camY - 40) / T));
@@ -1480,9 +1590,11 @@ function frame(now) {
   for (let ty = y0; ty <= y1; ty++) {
     for (let tx = x0; tx <= x1; tx++) {
       const h = hash2(tx, ty);
-      if (h > 0.55) {
+      if (h > 0.55 && h < 0.9) {
         const tuft = SPR.tufts[Math.floor(h * 997) % SPR.tufts.length];
         ctx.drawImage(tuft, tx * T + (h * 613) % (T - 26), ty * T + (h * 389) % (T - 26));
+      } else if (h >= 0.9 && h < 0.94) {
+        ctx.drawImage(SPR.pebble, tx * T + (h * 733) % (T - 16), ty * T + (h * 431) % (T - 12));
       }
     }
   }
@@ -1495,6 +1607,19 @@ function frame(now) {
 
   const drawables = [];
   for (const o of obstacles) drawables.push({ y: o.y + o.r * 0.6, f: () => drawSprite(o.kind === 'tree' ? SPR.tree : SPR.rock, o.x, o.y + o.r * 0.8, false, false) });
+  for (let ty = y0; ty <= y1; ty++) {
+    for (let tx = x0; tx <= x1; tx++) {
+      const h = hash2(tx * 3 + 7, ty * 5 + 3);
+      if (h > 0.965) {
+        const bx = tx * T + 20 + (h * 389) % 24, by = ty * T + 34 + (h * 613) % 20;
+        if (Math.hypot(bx - spawn.x, by - spawn.y) > 210) {
+          let near = false;
+          for (const o of obstacles) { if (Math.hypot(bx - o.x, by - o.y) < o.r + 26) { near = true; break; } }
+          if (!near) drawables.push({ y: by, f: () => drawSprite(SPR.bush, bx, by, false, false) });
+        }
+      }
+    }
+  }
   drawables.push({ y: SHOP.y + 30, f: () => {
     drawSprite(SPR.stall, SHOP.x, SHOP.y + 34, false, false);
     ctx.fillStyle = '#fbbf24';
@@ -1508,6 +1633,19 @@ function frame(now) {
   for (const p of players.values()) drawables.push({ y: p.y + 12, f: () => drawPlayer(p, now) });
   drawables.sort((a, b) => a.y - b.y);
   for (const d of drawables) d.f();
+
+  if (motes.length < 26 && Math.random() < 0.06) motes.push({ x: camX + Math.random() * canvas.width, y: camY + Math.random() * canvas.height, vx: (Math.random() - 0.5) * 0.15, vy: -0.05 - Math.random() * 0.1, life: 1 });
+  for (let i = motes.length - 1; i >= 0; i--) {
+    const mo = motes[i];
+    mo.x += mo.vx; mo.y += mo.vy; mo.life -= 0.0016;
+    if (mo.life <= 0 || mo.x < camX - 20 || mo.x > camX + canvas.width + 20 || mo.y < camY - 20) { motes.splice(i, 1); continue; }
+    ctx.globalAlpha = 0.2 * mo.life;
+    ctx.fillStyle = '#fef9c3';
+    ctx.beginPath(); ctx.arc(mo.x, mo.y, 1.6, 0, 7); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  const bossEnt = [...mobs.values()].find((m) => m.ty === 'boss');
+  if (bossEnt && Math.random() < 0.12) particles.push({ x: bossEnt.x + (Math.random() - 0.5) * 50, y: bossEnt.y - Math.random() * 34, vx: (Math.random() - 0.5) * 0.4, vy: -0.5 - Math.random() * 0.5, life: 1, decay: 0.01 + Math.random() * 0.012, color: Math.random() < 0.5 ? '#fb923c' : '#fde047', size: 2.5, grav: -0.02 });
 
   drawRings(now);
   drawArrows(now);
