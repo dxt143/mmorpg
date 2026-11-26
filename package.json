@@ -1,0 +1,13 @@
+{
+  "name": "embervale-online",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A fully working browser MMORPG: Node.js WebSocket server + HTML5 canvas client. Zero dependencies.",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node test.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

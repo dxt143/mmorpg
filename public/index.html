@@ -1,0 +1,812 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Embervale Online — Browser MMORPG</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #16281a; font-family: 'Segoe UI', system-ui, sans-serif; }
+  #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
+
+  #login {
+    position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: radial-gradient(ellipse at center, rgba(20,50,30,.88), rgba(5,15,8,.96)); z-index: 50; color: #e8f5e9;
+  }
+  #login h1 { font-size: 56px; letter-spacing: 4px; text-shadow: 0 0 24px #4ade80; color: #a7f3c9; }
+  #login h2 { font-size: 15px; font-weight: 400; color: #9fc7a8; margin: 8px 0 30px; letter-spacing: 2px; }
+  #nameInput {
+    padding: 14px 18px; font-size: 20px; width: 300px; text-align: center; border-radius: 10px;
+    border: 2px solid #4ade80; background: rgba(0,0,0,.5); color: #e8f5e9; outline: none;
+  }
+  #playBtn {
+    margin-top: 16px; padding: 14px 48px; font-size: 20px; font-weight: 700; letter-spacing: 2px; cursor: pointer;
+    border: none; border-radius: 10px; background: linear-gradient(180deg, #4ade80, #16a34a); color: #052e12;
+    box-shadow: 0 4px 20px rgba(74,222,128,.4); transition: transform .1s;
+  }
+  #playBtn:hover { transform: scale(1.05); }
+  #loginStatus { margin-top: 14px; color: #fca5a5; min-height: 20px; font-size: 14px; }
+  #login .help { margin-top: 34px; color: #7ba889; font-size: 13px; line-height: 1.9; text-align: center; }
+  #login .help b { color: #c8ead2; }
+
+  #hud { position: fixed; left: 16px; bottom: 16px; z-index: 10; width: 280px; pointer-events: none; user-select: none; }
+  .bar { height: 20px; border-radius: 10px; background: rgba(0,0,0,.55); border: 1px solid rgba(255,255,255,.25); overflow: hidden; position: relative; margin-top: 6px; }
+  .bar > div { height: 100%; transition: width .15s; }
+  #hpFill { background: linear-gradient(180deg, #ef4444, #b91c1c); width: 100%; }
+  #xpFill { background: linear-gradient(180deg, #c084fc, #7c3aed); width: 0%; }
+  .bar span {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700; color: #fff; text-shadow: 0 1px 2px #000;
+  }
+  #hudTop { display: flex; align-items: center; gap: 8px; color: #d9f2e0; font-size: 15px; font-weight: 700; text-shadow: 0 1px 3px #000; }
+  #lvlBadge {
+    background: linear-gradient(180deg,#fbbf24,#d97706); color: #451a03; border-radius: 8px;
+    padding: 2px 10px; font-size: 14px; box-shadow: 0 2px 8px rgba(0,0,0,.4);
+  }
+  #goldDisp { color: #fde047; }
+  #atkDisp { color: #93c5fd; }
+
+  #chatlog { position: fixed; left: 16px; bottom: 92px; width: 380px; z-index: 10; pointer-events: none; user-select: none; }
+  .cmsg { color: #fff; font-size: 13.5px; text-shadow: 0 1px 2px #000; margin-top: 3px; opacity: .95; word-wrap: break-word; transition: opacity 1s; }
+  .cmsg.sys { color: #9aa; font-style: italic; }
+  .cmsg .who { font-weight: 700; }
+  #chatInput {
+    position: fixed; left: 16px; bottom: 92px; width: 380px; z-index: 11; display: none;
+    padding: 8px 10px; font-size: 14px; border-radius: 8px; border: 1px solid #4ade80;
+    background: rgba(0,0,0,.75); color: #e8f5e9; outline: none;
+  }
+
+  #feed { position: fixed; top: 14px; left: 50%; transform: translateX(-50%); z-index: 10; text-align: center; pointer-events: none; user-select: none; }
+  .fmsg { color: #fde68a; font-size: 14.5px; font-weight: 600; text-shadow: 0 1px 3px #000; margin-top: 4px; animation: fade 4s forwards; }
+  .fmsg.bad { color: #fca5a5; }
+  @keyframes fade { 0% {opacity: 0; transform: translateY(-6px);} 8% {opacity: 1; transform: none;} 75% {opacity: 1;} 100% {opacity: 0;} }
+
+  #bossbar { position: fixed; top: 64px; left: 50%; transform: translateX(-50%); width: 420px; z-index: 10; text-align: center; display: none; pointer-events: none; user-select: none; }
+  #bossLabel { color: #fca5a5; font-weight: 800; letter-spacing: 3px; font-size: 14px; text-shadow: 0 1px 3px #000; }
+  .bossTrack { height: 14px; border-radius: 7px; background: rgba(0,0,0,.6); border: 1px solid rgba(252,165,165,.5); overflow: hidden; margin-top: 3px; }
+  #bossFill { height: 100%; width: 100%; background: linear-gradient(180deg, #ef4444, #7f1d1d); transition: width .2s; }
+
+  #minimapWrap { position: fixed; top: 14px; right: 14px; z-index: 10; border: 2px solid rgba(255,255,255,.3); border-radius: 8px; overflow: hidden; background: rgba(0,0,0,.4); }
+  #mm { display: block; }
+
+  #online { position: fixed; top: 14px; left: 14px; z-index: 10; color: #d9f2e0; font-size: 14px; font-weight: 600; text-shadow: 0 1px 3px #000; user-select: none; }
+  #hint { position: fixed; right: 14px; bottom: 14px; z-index: 10; color: rgba(255,255,255,.55); font-size: 12px; text-align: right; text-shadow: 0 1px 2px #000; line-height: 1.7; user-select: none; }
+  #prompt {
+    position: fixed; bottom: 140px; left: 50%; transform: translateX(-50%); z-index: 10; display: none;
+    background: rgba(0,0,0,.7); border: 1px solid #fbbf24; color: #fde68a; padding: 8px 18px;
+    border-radius: 10px; font-size: 14px; font-weight: 600; pointer-events: none; user-select: none;
+  }
+  #deadOverlay {
+    position: fixed; inset: 0; display: none; align-items: center; justify-content: center; z-index: 40;
+    background: rgba(120, 0, 0, .35); color: #fecaca; font-size: 42px; font-weight: 800; letter-spacing: 3px;
+    text-shadow: 0 2px 12px #000; pointer-events: none;
+  }
+
+  #invPanel {
+    position: fixed; top: 190px; right: 14px; width: 280px; z-index: 20; display: none;
+    background: rgba(8, 18, 12, .92); border: 1px solid #4ade80; border-radius: 10px; color: #e8f5e9;
+    padding: 10px 12px; user-select: none;
+  }
+  #invHead { display: flex; justify-content: space-between; align-items: center; font-weight: 800; letter-spacing: 1px; color: #a7f3c9; }
+  #invClose { background: none; border: none; color: #9fc7a8; font-size: 18px; cursor: pointer; }
+  #invEquip { margin-top: 8px; font-size: 12.5px; color: #c8ead2; line-height: 1.6; border-top: 1px solid rgba(255,255,255,.12); border-bottom: 1px solid rgba(255,255,255,.12); padding: 6px 0; }
+  #invEquip b { color: #93c5fd; }
+  #invList { margin-top: 6px; max-height: 300px; overflow-y: auto; }
+  .invRow { display: flex; align-items: center; gap: 6px; padding: 5px 2px; border-bottom: 1px solid rgba(255,255,255,.06); font-size: 13px; }
+  .invName { flex: 1; font-weight: 700; }
+  .invDesc { color: #9fc7a8; font-size: 11.5px; }
+  .invBtn {
+    background: #166534; color: #d9f2e0; border: 1px solid #4ade80; border-radius: 6px;
+    padding: 3px 10px; font-size: 11.5px; font-weight: 700; cursor: pointer;
+  }
+  .invBtn:hover { background: #22c55e; color: #052e12; }
+  .invEmpty { color: #7ba889; font-size: 12.5px; font-style: italic; padding: 8px 0; }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="login">
+  <h1>EMBERVALE</h1>
+  <h2>A REAL-TIME BROWSER MMORPG</h2>
+  <input id="nameInput" maxlength="14" placeholder="Enter your hero name" autocomplete="off">
+  <button id="playBtn">ENTER WORLD</button>
+  <div id="loginStatus"></div>
+  <div class="help">
+    <b>WASD / Arrows</b> — move &nbsp;•&nbsp; <b>Space / Click</b> — attack &nbsp;•&nbsp; <b>Enter</b> — chat<br>
+    <b>I</b> — inventory &nbsp;•&nbsp; <b>E</b> — buy potion at the shop in town<br>
+    Slay monsters for gold and loot, level up, and hunt the boss <b>Embermaw</b>. Progress auto-saves.
+  </div>
+</div>
+
+<div id="hud" style="display:none">
+  <div id="hudTop">
+    <span id="lvlBadge">Lv 1</span><span id="heroName">Hero</span>
+    <span id="atkDisp">⚔ 10</span><span id="goldDisp">🪙 0</span>
+  </div>
+  <div class="bar"><div id="hpFill"></div><span id="hpText"></span></div>
+  <div class="bar"><div id="xpFill"></div><span id="xpText"></span></div>
+</div>
+<div id="chatlog"></div>
+<input id="chatInput" maxlength="140" placeholder="Say something... (Enter to send, Esc to cancel)">
+<div id="feed"></div>
+<div id="bossbar"><div id="bossLabel">EMBERMAW</div><div class="bossTrack"><div id="bossFill"></div></div></div>
+<div id="minimapWrap" style="display:none"><canvas id="mm" width="160" height="160"></canvas></div>
+<div id="online" style="display:none"></div>
+<div id="hint" style="display:none">WASD move • Space/Click attack • Enter chat<br>I inventory • E shop</div>
+<div id="prompt"></div>
+<div id="deadOverlay">YOU DIED — RESPAWNING...</div>
+
+<div id="invPanel">
+  <div id="invHead">INVENTORY <button id="invClose">✕</button></div>
+  <div id="invEquip">
+    Weapon: <b id="invWeapon">—</b><br>
+    Armor: <b id="invArmor">—</b>
+  </div>
+  <div id="invList"></div>
+</div>
+
+<script>
+'use strict';
+
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const mm = document.getElementById('mm');
+const mmCtx = mm.getContext('2d');
+
+function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+window.addEventListener('resize', resize);
+resize();
+
+let ws = null;
+let myId = null;
+let world = { w: 2400, h: 2400 };
+let spawn = { x: 1200, y: 1200 };
+let SHOP = { x: 1280, y: 1200 };
+let obstacles = [];
+let joined = false;
+
+const players = new Map();
+const mobs = new Map();
+const loot = new Map();
+const slashes = [];
+const floaters = [];
+const keys = { u: 0, d: 0, l: 0, r: 0 };
+let lastSentInput = '';
+let camX = 0, camY = 0;
+let deadUntil = 0;
+let shopNear = false;
+let myInv = { inv: [], equip: { weapon: null, armor: null }, gold: 0 };
+
+let AC = null;
+function tone(freq, dur, type, vol, freq2) {
+  if (!AC) return;
+  try {
+    const o = AC.createOscillator();
+    const g = AC.createGain();
+    o.type = type || 'square';
+    o.frequency.setValueAtTime(freq, AC.currentTime);
+    if (freq2) o.frequency.exponentialRampToValueAtTime(freq2, AC.currentTime + dur);
+    g.gain.setValueAtTime(vol || 0.05, AC.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.0001, AC.currentTime + dur);
+    o.connect(g).connect(AC.destination);
+    o.start();
+    o.stop(AC.currentTime + dur + 0.02);
+  } catch {}
+}
+
+function hash2(x, y) {
+  let h = (x * 374761393 + y * 668265263) | 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967295;
+}
+
+function connect(name) {
+  const proto = location.protocol === 'https:' ? 'wss://' : 'ws://';
+  ws = new WebSocket(proto + location.host);
+  ws.onopen = () => ws.send(JSON.stringify({ t: 'join', name }));
+  ws.onmessage = (e) => {
+    let msg;
+    try { msg = JSON.parse(e.data); } catch { return; }
+    handle(msg);
+  };
+  ws.onclose = () => {
+    if (joined) {
+      document.getElementById('login').style.display = 'flex';
+      document.getElementById('loginStatus').textContent = 'Disconnected from server. Click ENTER WORLD to reconnect.';
+      joined = false;
+    } else {
+      document.getElementById('loginStatus').textContent = 'Cannot reach server. Is server.js running?';
+    }
+  };
+  ws.onerror = () => {};
+}
+
+function handle(msg) {
+  switch (msg.t) {
+    case 'welcome':
+      myId = msg.id;
+      world = msg.world;
+      spawn = msg.spawn;
+      SHOP = msg.shop || { x: spawn.x + 80, y: spawn.y };
+      obstacles = msg.obstacles || [];
+      joined = true;
+      document.getElementById('login').style.display = 'none';
+      for (const id of ['hud', 'minimapWrap', 'online', 'hint']) document.getElementById(id).style.display = 'block';
+      break;
+    case 'inv':
+      myInv = msg;
+      renderInv();
+      break;
+    case 'st': {
+      const seenP = new Set(), seenM = new Set(), seenL = new Set();
+      for (const sp of msg.pl) {
+        seenP.add(sp.id);
+        let p = players.get(sp.id);
+        if (!p) { p = { x: sp.x, y: sp.y }; players.set(sp.id, p); }
+        Object.assign(p, sp, { tx: sp.x, ty: sp.y });
+      }
+      for (const id of [...players.keys()]) if (!seenP.has(id)) players.delete(id);
+      for (const sm of msg.mb) {
+        seenM.add(sm.id);
+        let m = mobs.get(sm.id);
+        if (!m) { m = { x: sm.x, y: sm.y }; mobs.set(sm.id, m); }
+        Object.assign(m, sm, { tx: sm.x, ty: sm.y });
+      }
+      for (const id of [...mobs.keys()]) if (!seenM.has(id)) mobs.delete(id);
+      for (const sl of msg.lt || []) {
+        seenL.add(sl.id);
+        let l = loot.get(sl.id);
+        if (!l) { l = { x: sl.x, y: sl.y }; loot.set(sl.id, l); }
+        Object.assign(l, sl, { tx: sl.x, ty: sl.y });
+      }
+      for (const id of [...loot.keys()]) if (!seenL.has(id)) loot.delete(id);
+      break;
+    }
+    case 'chat': addChat(msg); break;
+    case 'ev': handleEvent(msg); break;
+  }
+}
+
+function handleEvent(ev) {
+  const me = players.get(myId);
+  switch (ev.k) {
+    case 'hit': {
+      tone(160, 0.07, 'square', 0.045);
+      if (ev.crit) tone(520, 0.12, 'sawtooth', 0.06, 940);
+      const m = mobs.get(ev.id);
+      if (m) floaters.push({ x: m.x, y: m.y - 24, text: '-' + ev.dmg, color: ev.crit ? '#fbbf24' : '#fff', t0: performance.now(), big: ev.crit });
+      break;
+    }
+    case 'kill':
+      tone(330, 0.09, 'square', 0.05);
+      setTimeout(() => tone(495, 0.12, 'square', 0.05), 90);
+      feed(`Slain ${ev.name}  (+${ev.xp} XP)`, false);
+      break;
+    case 'hurt':
+      tone(90, 0.18, 'sawtooth', 0.07, 55);
+      feed(`Hit by ${ev.from} for ${ev.dmg}`, true);
+      if (me) floaters.push({ x: me.x, y: me.y - 30, text: '-' + ev.dmg, color: '#ef4444', t0: performance.now() });
+      break;
+    case 'level':
+      [440, 554, 659, 880].forEach((f, i) => setTimeout(() => tone(f, 0.12, 'square', 0.05), i * 90));
+      feed(`LEVEL UP! You are now level ${ev.level} (HP ${ev.maxHp})`, false);
+      break;
+    case 'dead':
+      tone(220, 0.5, 'sawtooth', 0.08, 45);
+      deadUntil = performance.now() + 2500;
+      document.getElementById('deadOverlay').style.display = 'flex';
+      setTimeout(() => document.getElementById('deadOverlay').style.display = 'none', 2500);
+      break;
+    case 'gold':
+      tone(880, 0.06, 'square', 0.035, 1318);
+      if (me) floaters.push({ x: me.x, y: me.y - 34, text: '+' + ev.n + 'g', color: '#fde047', t0: performance.now() });
+      break;
+    case 'loot':
+      tone(660, 0.1, 'triangle', 0.06);
+      feed(`Picked up ${ev.it.name}`, false);
+      break;
+    case 'heal':
+      tone(520, 0.15, 'sine', 0.06, 780);
+      if (me) floaters.push({ x: me.x, y: me.y - 34, text: '+' + ev.n, color: '#4ade80', t0: performance.now() });
+      break;
+    case 'equip':
+      tone(392, 0.08, 'square', 0.05);
+      setTimeout(() => tone(523, 0.1, 'square', 0.05), 80);
+      feed(`Equipped ${ev.name}`, false);
+      break;
+    case 'buy':
+      tone(784, 0.07, 'square', 0.045);
+      setTimeout(() => tone(1046, 0.09, 'square', 0.045), 70);
+      feed(`Bought Health Potion (-${ev.price}g)`, false);
+      break;
+    case 'err':
+      tone(140, 0.16, 'square', 0.06);
+      feed(ev.m, true);
+      break;
+  }
+}
+
+function addChat(msg) {
+  const log = document.getElementById('chatlog');
+  const div = document.createElement('div');
+  div.className = 'cmsg' + (msg.sys ? ' sys' : '');
+  if (msg.sys) {
+    div.textContent = msg.m;
+  } else {
+    const who = document.createElement('span');
+    who.className = 'who';
+    who.style.color = `hsl(${msg.c}, 75%, 65%)`;
+    who.textContent = msg.n + ': ';
+    div.appendChild(who);
+    div.appendChild(document.createTextNode(msg.m));
+  }
+  log.appendChild(div);
+  while (log.children.length > 9) log.removeChild(log.firstChild);
+  setTimeout(() => { div.style.opacity = '0.35'; }, 9000);
+}
+
+function feed(text, bad) {
+  const f = document.getElementById('feed');
+  const div = document.createElement('div');
+  div.className = 'fmsg' + (bad ? ' bad' : '');
+  div.textContent = text;
+  f.appendChild(div);
+  while (f.children.length > 5) f.removeChild(f.firstChild);
+  setTimeout(() => div.remove(), 4100);
+}
+
+const RAR_COLORS = ['#e5e7eb', '#60a5fa', '#c084fc'];
+function rarColor(r) { return RAR_COLORS[(r || 1) - 1] || RAR_COLORS[0]; }
+function itemDesc(it) {
+  if (it.kind === 'weapon') return `+${it.power} ATK`;
+  if (it.kind === 'armor') return `+${it.power} HP`;
+  return 'Heals 50% HP';
+}
+function renderInv() {
+  const eq = myInv.equip || {};
+  const wEl = document.getElementById('invWeapon');
+  const aEl = document.getElementById('invArmor');
+  wEl.textContent = eq.weapon ? `${eq.weapon.name} (+${eq.weapon.power} ATK)` : '—';
+  wEl.style.color = eq.weapon ? rarColor(eq.weapon.rar) : '#93c5fd';
+  aEl.textContent = eq.armor ? `${eq.armor.name} (+${eq.armor.power} HP)` : '—';
+  aEl.style.color = eq.armor ? rarColor(eq.armor.rar) : '#93c5fd';
+  const list = document.getElementById('invList');
+  list.innerHTML = '';
+  if (!myInv.inv || !myInv.inv.length) {
+    const d = document.createElement('div');
+    d.className = 'invEmpty';
+    d.textContent = 'Empty — slay monsters for loot';
+    list.appendChild(d);
+    return;
+  }
+  for (const it of myInv.inv) {
+    const row = document.createElement('div');
+    row.className = 'invRow';
+    const nm = document.createElement('span');
+    nm.className = 'invName';
+    nm.style.color = rarColor(it.rar);
+    nm.textContent = it.name;
+    const ds = document.createElement('span');
+    ds.className = 'invDesc';
+    ds.textContent = itemDesc(it);
+    const btn = document.createElement('button');
+    btn.className = 'invBtn';
+    if (it.kind === 'potion') {
+      btn.textContent = 'Use';
+      btn.onclick = () => ws && ws.readyState === 1 && ws.send(JSON.stringify({ t: 'use', uid: it.uid }));
+    } else {
+      btn.textContent = 'Equip';
+      btn.onclick = () => ws && ws.readyState === 1 && ws.send(JSON.stringify({ t: 'equip', uid: it.uid }));
+    }
+    row.append(nm, ds, btn);
+    list.appendChild(row);
+  }
+}
+
+function toggleInv(force) {
+  const panel = document.getElementById('invPanel');
+  const show = force !== undefined ? force : panel.style.display !== 'block';
+  panel.style.display = show ? 'block' : 'none';
+  if (show) renderInv();
+}
+
+const nameInput = document.getElementById('nameInput');
+const chatInput = document.getElementById('chatInput');
+let chatOpen = false;
+
+document.getElementById('playBtn').addEventListener('click', () => {
+  if (!AC) {
+    try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch {}
+  }
+  if (AC && AC.state === 'suspended') AC.resume();
+  const name = nameInput.value.trim() || 'Wanderer';
+  document.getElementById('loginStatus').textContent = 'Connecting...';
+  connect(name);
+});
+nameInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') document.getElementById('playBtn').click();
+  e.stopPropagation();
+});
+document.getElementById('invClose').addEventListener('click', () => toggleInv(false));
+
+window.addEventListener('keydown', (e) => {
+  if (!joined) return;
+  if (chatOpen) {
+    if (e.key === 'Enter') {
+      const m = chatInput.value.trim();
+      if (m && ws && ws.readyState === 1) ws.send(JSON.stringify({ t: 'chat', m }));
+      chatInput.value = '';
+      chatInput.style.display = 'none';
+      chatOpen = false;
+    } else if (e.key === 'Escape') {
+      chatInput.value = '';
+      chatInput.style.display = 'none';
+      chatOpen = false;
+    }
+    e.stopPropagation();
+    return;
+  }
+  switch (e.code) {
+    case 'KeyW': case 'ArrowUp': keys.u = 1; e.preventDefault(); break;
+    case 'KeyS': case 'ArrowDown': keys.d = 1; e.preventDefault(); break;
+    case 'KeyA': case 'ArrowLeft': keys.l = 1; e.preventDefault(); break;
+    case 'KeyD': case 'ArrowRight': keys.r = 1; e.preventDefault(); break;
+    case 'Space': doAttack(); e.preventDefault(); break;
+    case 'KeyI': case 'KeyB': toggleInv(); e.preventDefault(); break;
+    case 'KeyE':
+      if (shopNear && ws && ws.readyState === 1) ws.send(JSON.stringify({ t: 'buy' }));
+      e.preventDefault();
+      break;
+    case 'Enter':
+      e.preventDefault();
+      chatOpen = true;
+      chatInput.style.display = 'block';
+      chatInput.focus();
+      break;
+  }
+});
+window.addEventListener('keyup', (e) => {
+  switch (e.code) {
+    case 'KeyW': case 'ArrowUp': keys.u = 0; break;
+    case 'KeyS': case 'ArrowDown': keys.d = 0; break;
+    case 'KeyA': case 'ArrowLeft': keys.l = 0; break;
+    case 'KeyD': case 'ArrowRight': keys.r = 0; break;
+  }
+});
+
+canvas.addEventListener('mousedown', () => {
+  if (joined && !chatOpen) doAttack();
+});
+
+function doAttack() {
+  if (!ws || ws.readyState !== 1) return;
+  ws.send(JSON.stringify({ t: 'attack' }));
+  const me = players.get(myId);
+  if (me) slashes.push({ x: me.x, y: me.y, fx: me.fx || 1, fy: me.fy || 0, t0: performance.now() });
+}
+
+setInterval(() => {
+  if (!joined || !ws || ws.readyState !== 1) return;
+  const sig = keys.u + '' + keys.d + '' + keys.l + '' + keys.r;
+  if (sig !== lastSentInput) {
+    lastSentInput = sig;
+    ws.send(JSON.stringify({ t: 'input', ...keys }));
+  }
+}, 50);
+
+function nearestMobInRange(x, y, range) {
+  let best = null, bd = range;
+  for (const m of mobs.values()) {
+    const d = Math.hypot(m.x - x, m.y - y);
+    if (d < bd) { bd = d; best = m; }
+  }
+  return best;
+}
+
+function drawGround() {
+  const T = 64;
+  const x0 = Math.max(0, Math.floor(camX / T) - 1), y0 = Math.max(0, Math.floor(camY / T) - 1);
+  const x1 = Math.min(world.w / T, Math.ceil((camX + canvas.width) / T) + 1);
+  const y1 = Math.min(world.h / T, Math.ceil((camY + canvas.height) / T) + 1);
+  for (let ty = y0; ty < y1; ty++) {
+    for (let tx = x0; tx < x1; tx++) {
+      const h = hash2(tx, ty);
+      const light = 24 + h * 9;
+      ctx.fillStyle = `hsl(${128 + h * 14}, ${42 + h * 10}%, ${light}%)`;
+      ctx.fillRect(tx * T - camX, ty * T - camY, T + 1, T + 1);
+      if (h > 0.93) {
+        ctx.fillStyle = `hsl(${h * 360}, 60%, 70%)`;
+        ctx.beginPath();
+        ctx.arc(tx * T - camX + (h * 900) % T, ty * T - camY + (h * 613) % T, 2.5, 0, 7);
+        ctx.fill();
+      }
+    }
+  }
+  ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+  ctx.lineWidth = 3;
+  ctx.strokeRect(-camX, -camY, world.w, world.h);
+}
+
+function drawObstacles() {
+  for (const o of obstacles) {
+    const sx = o.x - camX, sy = o.y - camY;
+    if (sx < -60 || sy < -60 || sx > canvas.width + 60 || sy > canvas.height + 60) continue;
+    if (o.kind === 'tree') {
+      ctx.fillStyle = '#5b3a1e';
+      ctx.fillRect(sx - 4, sy - 2, 8, 12);
+      ctx.fillStyle = '#14532d';
+      ctx.beginPath(); ctx.arc(sx, sy - 10, o.r, 0, 7); ctx.fill();
+      ctx.fillStyle = '#166534';
+      ctx.beginPath(); ctx.arc(sx - o.r * 0.3, sy - 14, o.r * 0.7, 0, 7); ctx.fill();
+      ctx.fillStyle = '#22c55e';
+      ctx.beginPath(); ctx.arc(sx - o.r * 0.35, sy - 18, o.r * 0.35, 0, 7); ctx.fill();
+    } else {
+      ctx.fillStyle = '#6b7280';
+      ctx.beginPath(); ctx.arc(sx, sy, o.r, 0, 7); ctx.fill();
+      ctx.fillStyle = '#9ca3af';
+      ctx.beginPath(); ctx.arc(sx - o.r * 0.25, sy - o.r * 0.25, o.r * 0.6, 0, 7); ctx.fill();
+    }
+  }
+}
+
+function drawShop() {
+  const sx = SHOP.x - camX, sy = SHOP.y - camY;
+  if (sx < -80 || sy < -80 || sx > canvas.width + 80 || sy > canvas.height + 80) return;
+  ctx.fillStyle = 'rgba(0,0,0,.3)';
+  ctx.beginPath(); ctx.ellipse(sx, sy + 14, 30, 8, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = '#7c4a21';
+  ctx.fillRect(sx - 26, sy - 4, 52, 20);
+  ctx.fillStyle = '#92600f';
+  ctx.fillRect(sx - 26, sy - 8, 52, 5);
+  ctx.fillStyle = '#a16207';
+  ctx.beginPath(); ctx.arc(sx, sy - 14, 11, 0, 7); ctx.fill();
+  ctx.fillStyle = '#5b3a1e';
+  ctx.beginPath(); ctx.moveTo(sx - 13, sy - 19); ctx.lineTo(sx, sy - 36); ctx.lineTo(sx + 13, sy - 19); ctx.fill();
+  ctx.fillStyle = '#fbbf24';
+  ctx.font = 'bold 10px system-ui';
+  ctx.textAlign = 'center';
+  ctx.fillText('SHOP', sx, sy + 30);
+}
+
+function drawLoot(l, now) {
+  const sx = l.x - camX, sy = l.y - camY;
+  if (sx < -30 || sy < -30 || sx > canvas.width + 30 || sy > canvas.height + 30) return;
+  const bob = Math.sin(now / 300 + l.id) * 3;
+  if (l.c === 'gold') {
+    ctx.fillStyle = '#fbbf24';
+    ctx.beginPath(); ctx.arc(sx, sy + bob, 6, 0, 7); ctx.fill();
+    ctx.strokeStyle = '#b45309';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  } else {
+    const colors = { weapon: '#93c5fd', armor: '#d6a05c', potion: '#f87171' };
+    ctx.save();
+    ctx.translate(sx, sy + bob);
+    ctx.rotate(Math.PI / 4);
+    ctx.fillStyle = colors[l.c] || '#fff';
+    const s = l.r === 3 ? 9 : 7;
+    ctx.fillRect(-s / 2, -s / 2, s, s);
+    if (l.r >= 2) {
+      ctx.strokeStyle = l.r === 3 ? '#c084fc' : '#60a5fa';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(-s / 2, -s / 2, s, s);
+    }
+    ctx.restore();
+  }
+}
+
+function drawMob(m, now) {
+  const sx = m.x - camX, sy = m.y - camY;
+  if (sx < -90 || sy < -90 || sx > canvas.width + 90 || sy > canvas.height + 90) return;
+  const wob = Math.sin(now / 200 + m.id) * 2;
+  if (m.ty === 'slime') {
+    ctx.fillStyle = '#4ade80';
+    ctx.beginPath(); ctx.ellipse(sx, sy + wob * 0.4, 16, 13 + wob, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = '#166534';
+    ctx.beginPath(); ctx.ellipse(sx, sy + 3 + wob * 0.4, 12, 8, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = '#052e12';
+    ctx.beginPath(); ctx.arc(sx - 5, sy - 3, 2.4, 0, 7); ctx.arc(sx + 5, sy - 3, 2.4, 0, 7); ctx.fill();
+  } else if (m.ty === 'boar') {
+    ctx.fillStyle = '#92400e';
+    ctx.beginPath(); ctx.arc(sx, sy, 18, 0, 7); ctx.fill();
+    ctx.fillStyle = '#78350f';
+    ctx.beginPath(); ctx.arc(sx - 10, sy - 14, 6, 0, 7); ctx.arc(sx + 10, sy - 14, 6, 0, 7); ctx.fill();
+    ctx.fillStyle = '#fcd9b8';
+    ctx.beginPath(); ctx.ellipse(sx, sy + 6, 7, 5, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = '#7c2d12';
+    ctx.beginPath(); ctx.arc(sx - 3, sy + 6, 1.6, 0, 7); ctx.arc(sx + 3, sy + 6, 1.6, 0, 7); ctx.fill();
+    ctx.fillStyle = '#1c1917';
+    ctx.beginPath(); ctx.arc(sx - 6, sy - 4, 2.4, 0, 7); ctx.arc(sx + 6, sy - 4, 2.4, 0, 7); ctx.fill();
+  } else if (m.ty === 'wolf') {
+    ctx.fillStyle = '#94a3b8';
+    ctx.beginPath(); ctx.arc(sx, sy, 17, 0, 7); ctx.fill();
+    ctx.fillStyle = '#64748b';
+    ctx.beginPath(); ctx.arc(sx - 9, sy - 15, 5.5, 0, 7); ctx.arc(sx + 9, sy - 15, 5.5, 0, 7); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(sx + 14, sy - 6); ctx.lineTo(sx + 26, sy - 2); ctx.lineTo(sx + 14, sy + 4); ctx.fill();
+    ctx.fillStyle = '#0f172a';
+    ctx.beginPath(); ctx.arc(sx - 6, sy - 3, 2.4, 0, 7); ctx.arc(sx + 6, sy - 3, 2.4, 0, 7); ctx.fill();
+    ctx.fillStyle = '#dc2626';
+    ctx.beginPath(); ctx.arc(sx, sy + 4, 2.2, 0, 7); ctx.fill();
+  } else if (m.ty === 'boss') {
+    ctx.fillStyle = 'rgba(0,0,0,.4)';
+    ctx.beginPath(); ctx.ellipse(sx, sy + 30, 40, 10, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = '#7f1d1d';
+    ctx.beginPath(); ctx.arc(sx, sy, 34, 0, 7); ctx.fill();
+    ctx.fillStyle = '#dc2626';
+    ctx.beginPath(); ctx.arc(sx, sy, 26, 0, 7); ctx.fill();
+    ctx.fillStyle = '#450a0a';
+    ctx.beginPath(); ctx.moveTo(sx - 26, sy - 22); ctx.lineTo(sx - 38, sy - 44); ctx.lineTo(sx - 10, sy - 30); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(sx + 26, sy - 22); ctx.lineTo(sx + 38, sy - 44); ctx.lineTo(sx + 10, sy - 30); ctx.fill();
+    ctx.fillStyle = '#fde047';
+    ctx.beginPath(); ctx.arc(sx - 9, sy - 5, 4, 0, 7); ctx.arc(sx + 9, sy - 5, 4, 0, 7); ctx.fill();
+    ctx.fillStyle = '#7f1d1d';
+    ctx.beginPath(); ctx.arc(sx - 9, sy - 5, 1.8, 0, 7); ctx.arc(sx + 9, sy - 5, 1.8, 0, 7); ctx.fill();
+    ctx.strokeStyle = '#450a0a';
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(sx - 12, sy + 12); ctx.lineTo(sx + 12, sy + 12); ctx.stroke();
+  }
+  if (m.hp < m.maxHp) {
+    const w = m.ty === 'boss' ? 70 : 34;
+    ctx.fillStyle = 'rgba(0,0,0,.6)';
+    ctx.fillRect(sx - w / 2, sy - (m.ty === 'boss' ? 52 : 30), w, 5);
+    ctx.fillStyle = '#ef4444';
+    ctx.fillRect(sx - w / 2 + 1, sy - (m.ty === 'boss' ? 51 : 29), (w - 2) * Math.max(0, m.hp / m.maxHp), 3);
+  }
+}
+
+function drawPlayer(p, now) {
+  const sx = p.x - camX, sy = p.y - camY;
+  const isMe = p.id === myId;
+  if (!p.a) return;
+  ctx.fillStyle = 'rgba(0,0,0,.3)';
+  ctx.beginPath(); ctx.ellipse(sx, sy + 12, 13, 5, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = `hsl(${p.c}, 65%, 50%)`;
+  ctx.beginPath(); ctx.arc(sx, sy, 14, 0, 7); ctx.fill();
+  ctx.lineWidth = 2.5;
+  ctx.strokeStyle = isMe ? '#fef08a' : 'rgba(0,0,0,.55)';
+  ctx.stroke();
+  if (p.equipW) {
+    ctx.strokeStyle = '#e5e7eb';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(sx + (p.fx || 1) * 16, sy + (p.fy || 0) * 16 - 4);
+    ctx.lineTo(sx + (p.fx || 1) * 26, sy + (p.fy || 0) * 26 - 10);
+    ctx.stroke();
+  }
+  const fx = p.fx || 1, fy = p.fy || 0;
+  ctx.fillStyle = '#0f172a';
+  ctx.beginPath(); ctx.arc(sx + fx * 6 - fy * 4, sy + fy * 6 + fx * 4 - 2, 2.6, 0, 7); ctx.arc(sx + fx * 6 + fy * 4, sy + fy * 6 - fx * 4 - 2, 2.6, 0, 7); ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 12px system-ui';
+  ctx.textAlign = 'center';
+  ctx.fillText(p.n, sx, sy - 30);
+  const w = 36;
+  ctx.fillStyle = 'rgba(0,0,0,.6)';
+  ctx.fillRect(sx - w / 2, sy - 26, w, 5);
+  ctx.fillStyle = p.hp / p.maxHp > 0.35 ? '#22c55e' : '#ef4444';
+  ctx.fillRect(sx - w / 2 + 1, sy - 25, (w - 2) * Math.max(0, p.hp / p.maxHp), 3);
+  if (isMe) {
+    const tgt = nearestMobInRange(p.x, p.y, 82);
+    if (tgt) {
+      ctx.strokeStyle = 'rgba(239,68,68,.9)';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(tgt.x - camX, tgt.y - camY, 24 + Math.sin(now / 120) * 3, 0, 7); ctx.stroke();
+    }
+  }
+}
+
+function drawSlashes(now) {
+  for (let i = slashes.length - 1; i >= 0; i--) {
+    const s = slashes[i];
+    const age = (now - s.t0) / 220;
+    if (age >= 1) { slashes.splice(i, 1); continue; }
+    const sx = s.x - camX, sy = s.y - camY;
+    const ang = Math.atan2(s.fy, s.fx);
+    ctx.strokeStyle = `rgba(255,255,255,${1 - age})`;
+    ctx.lineWidth = 4 * (1 - age) + 1;
+    ctx.beginPath();
+    ctx.arc(sx, sy, 30 + age * 14, ang - 1.1 + age * 1.6, ang + 0.5 + age * 1.6);
+    ctx.stroke();
+  }
+}
+
+function drawFloaters(now) {
+  ctx.textAlign = 'center';
+  for (let i = floaters.length - 1; i >= 0; i--) {
+    const f = floaters[i];
+    const age = (now - f.t0) / 900;
+    if (age >= 1) { floaters.splice(i, 1); continue; }
+    ctx.font = (f.big ? 'bold 20px' : 'bold 15px') + ' system-ui';
+    ctx.fillStyle = f.color;
+    ctx.globalAlpha = 1 - age;
+    ctx.fillText(f.text, f.x - camX, f.y - camY - age * 34);
+    ctx.globalAlpha = 1;
+  }
+}
+
+function drawMinimap() {
+  const s = 160 / world.w;
+  mmCtx.fillStyle = '#14301c';
+  mmCtx.fillRect(0, 0, 160, 160);
+  mmCtx.fillStyle = 'rgba(0,0,0,.5)';
+  for (const o of obstacles) mmCtx.fillRect(o.x * s - 1, o.y * s - 1, 2, 2);
+  mmCtx.fillStyle = '#fbbf24';
+  for (const l of loot.values()) mmCtx.fillRect(l.x * s - 1, l.y * s - 1, 2, 2);
+  mmCtx.fillStyle = '#ef4444';
+  for (const m of mobs.values()) { mmCtx.fillRect(m.x * s - 1, m.y * s - 1, m.ty === 'boss' ? 4 : 2, m.ty === 'boss' ? 4 : 2); }
+  for (const p of players.values()) {
+    if (!p.a) continue;
+    mmCtx.fillStyle = p.id === myId ? '#fde047' : '#fff';
+    mmCtx.beginPath(); mmCtx.arc(p.x * s, p.y * s, p.id === myId ? 3 : 2, 0, 7); mmCtx.fill();
+  }
+  mmCtx.strokeStyle = 'rgba(255,255,255,.5)';
+  mmCtx.strokeRect(camX * s, camY * s, canvas.width * s, canvas.height * s);
+}
+
+function updateHud() {
+  const me = players.get(myId);
+  if (!me) return;
+  document.getElementById('lvlBadge').textContent = 'Lv ' + me.level;
+  document.getElementById('heroName').textContent = me.n;
+  document.getElementById('atkDisp').textContent = '⚔ ' + (me.atk || 0);
+  document.getElementById('goldDisp').textContent = '🪙 ' + (me.g || 0);
+  document.getElementById('hpFill').style.width = Math.max(0, me.hp / me.maxHp * 100) + '%';
+  document.getElementById('hpText').textContent = `HP ${me.hp} / ${me.maxHp}`;
+  document.getElementById('xpFill').style.width = Math.min(100, me.xp / me.xn * 100) + '%';
+  document.getElementById('xpText').textContent = `XP ${me.xp} / ${me.xn}`;
+  document.getElementById('online').textContent = `Embervale — ${players.size} online`;
+  const boss = [...mobs.values()].find((m) => m.ty === 'boss');
+  const bb = document.getElementById('bossbar');
+  if (boss) {
+    bb.style.display = 'block';
+    document.getElementById('bossFill').style.width = Math.max(0, boss.hp / boss.maxHp * 100) + '%';
+  } else {
+    bb.style.display = 'none';
+  }
+  shopNear = !!(me.a && Math.hypot(me.x - SHOP.x, me.y - SHOP.y) < 130);
+  const prompt = document.getElementById('prompt');
+  if (shopNear) {
+    prompt.style.display = 'block';
+    prompt.textContent = `Press E — Health Potion (${25} gold)`;
+  } else {
+    prompt.style.display = 'none';
+  }
+}
+
+let lastFrame = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - lastFrame) / 1000);
+  lastFrame = now;
+  const k = 1 - Math.exp(-dt * 14);
+  for (const p of players.values()) { p.x += (p.tx - p.x) * k; p.y += (p.ty - p.y) * k; }
+  for (const m of mobs.values()) { m.x += (m.tx - m.x) * k; m.y += (m.ty - m.y) * k; }
+  for (const l of loot.values()) { l.x += (l.tx - l.x) * k; l.y += (l.ty - l.y) * k; }
+
+  const me = players.get(myId);
+  if (me) {
+    camX = Math.max(0, Math.min(world.w - canvas.width, me.x - canvas.width / 2));
+    camY = Math.max(0, Math.min(world.h - canvas.height, me.y - canvas.height / 2));
+    if (world.w < canvas.width) camX = (world.w - canvas.width) / 2;
+    if (world.h < canvas.height) camY = (world.h - canvas.height) / 2;
+  }
+
+  drawGround();
+  drawObstacles();
+  drawShop();
+  for (const l of loot.values()) drawLoot(l, now);
+  const drawables = [];
+  for (const m of mobs.values()) drawables.push({ y: m.y, f: () => drawMob(m, now) });
+  for (const p of players.values()) drawables.push({ y: p.y, f: () => drawPlayer(p, now) });
+  drawables.sort((a, b) => a.y - b.y);
+  for (const d of drawables) d.f();
+  drawSlashes(now);
+  drawFloaters(now);
+  drawMinimap();
+  updateHud();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
