@@ -35,8 +35,9 @@ function waitForServer() {
 }
 
 class Client {
-  constructor(name) {
+  constructor(name, cls) {
     this.name = name;
+    this.cls = cls || 'knight';
     this.state = null;
     this.events = [];
     this.chats = [];
@@ -47,7 +48,7 @@ class Client {
     return new Promise((resolve, reject) => {
       this.ws = new WebSocket(`ws://127.0.0.1:${PORT}`);
       this.ws.addEventListener('open', () => {
-        this.ws.send(JSON.stringify({ t: 'join', name: this.name }));
+        this.ws.send(JSON.stringify({ t: 'join', name: this.name, cls: this.cls }));
       });
       this.ws.addEventListener('message', (e) => {
         const msg = JSON.parse(e.data);
@@ -61,7 +62,7 @@ class Client {
     });
   }
   send(obj) { this.ws.send(JSON.stringify(obj)); }
-  me() { return this.state.pl.find((p) => p.id === this.welcome.id); }
+  me() { return this.state ? this.state.pl.find((p) => p.id === this.welcome.id) : null; }
   async waitFor(pred, timeout = 8000, label = 'condition') {
     const t0 = Date.now();
     while (Date.now() - t0 < timeout) {
@@ -87,8 +88,8 @@ async function main() {
   console.log('server up');
 
   try {
-    const alice = new Client('Alice');
-    const bob = new Client('Bob');
+    const alice = new Client('Alice', 'knight');
+    const bob = new Client('Bob', 'mage');
     await alice.connect();
     await bob.connect();
     assert(alice.welcome.world.w === 2400 && alice.welcome.obstacles.length > 100, 'welcome payload has world + obstacles');
@@ -98,6 +99,9 @@ async function main() {
     assert(bob.state.pl.some((p) => p.n === 'Alice'), 'Bob sees Alice in snapshot');
     await alice.waitFor(() => alice.state.mb.some((m) => m.ty === 'boss'), 3000, 'boss present');
     assert(true, 'world boss Embermaw is in the world');
+    assert(alice.welcome.classes && alice.welcome.classes.knight && alice.welcome.classes.cleric, 'welcome includes 4-class metadata');
+    assert(alice.me().cls === 'knight' && bob.me().cls === 'mage', 'class stored in snapshot');
+    assert(alice.me().maxHp === 150 && bob.me().maxHp === 85, `class base stats differ (knight ${alice.me().maxHp} HP vs mage ${bob.me().maxHp} HP)`);
 
     const x0 = alice.me().x;
     alice.send({ t: 'input', r: 1, u: 0, d: 0, l: 0 });
@@ -147,6 +151,30 @@ async function main() {
     const hpBefore = alice.me().hp;
     await alice.waitFor(() => alice.me().hp > hpBefore, 6000, 'hp regen');
     assert(true, `HP regen works (${hpBefore} -> ${alice.me().hp})`);
+
+    await alice.waitFor(() => alice.state.mb.some((m) => m.ty !== 'boss'), 3000, 'mob for skill test');
+    const skTarget = alice.state.mb.filter((m) => m.ty !== 'boss')[0];
+    alice.send({ t: 'tp', x: skTarget.x - 30, y: skTarget.y });
+    await sleep(200);
+    alice.send({ t: 'skill' });
+    await alice.waitFor(() => alice.events.some((e) => e.k === 'skill' && e.sk === 'whirl' && e.cls === 'knight'), 3000, 'skill event');
+    await alice.waitFor(() => {
+      const m = alice.state.mb.find((mm) => mm.id === skTarget.id);
+      return !m || m.hp < m.maxHp;
+    }, 3000, 'whirl damage');
+    assert(true, 'knight Whirlwind skill damages mobs in range');
+    alice.send({ t: 'skill' });
+    await alice.waitFor(() => alice.events.some((e) => e.k === 'err' && /cooldown/i.test(e.m || '')), 2000, 'cooldown error');
+    assert(true, 'skill cooldown is enforced server-side');
+
+    const carol = new Client('Carol', 'cleric');
+    await carol.connect();
+    carol.send({ t: 'sethp', hp: 30 });
+    await carol.waitFor(() => carol.me() && carol.me().hp <= 40, 2000, 'carol hp lowered');
+    carol.send({ t: 'skill' });
+    await carol.waitFor(() => carol.me() && carol.me().hp > 80, 3000, 'cleric heal');
+    assert(true, `cleric Heal skill works (hp 30 -> ${carol.me().hp})`);
+    assert(carol.events.some((e) => e.k === 'skill' && e.sk === 'heal'), 'heal skill event broadcast');
 
     const g0 = alice.me().g;
     alice.send({ t: 'give', gold: 100 });
@@ -204,11 +232,12 @@ async function main() {
     await alice2.connect();
     await alice2.waitFor(() => alice2.state && alice2.state.pl.length > 0, 5000, 'state after restart');
     assert(alice2.me().level === 7, `level persisted across restart (level ${alice2.me().level})`);
+    assert(alice2.me().cls === 'knight', 'class persisted across restart');
     assert(alice2.me().g === goldAtSave, `gold persisted across restart (${alice2.me().g})`);
     await alice2.waitFor(() => alice2.inv && alice2.inv.equip && alice2.inv.equip.weapon, 3000, 'equipment restored');
     assert(alice2.inv.equip.weapon.name === 'Test Blade', 'equipped weapon persisted');
     assert(alice2.inv.equip.armor && alice2.inv.equip.armor.name === 'Test Plate', 'equipped armor persisted');
-    assert(alice2.me().maxHp === 100 + 6 * 25 + 100, `stats recomputed from save (maxHp ${alice2.me().maxHp})`);
+    assert(alice2.me().maxHp === 150 + 6 * 22 + 100, `stats recomputed from save (maxHp ${alice2.me().maxHp})`);
 
     console.log('\nALL TESTS PASSED');
   } finally {

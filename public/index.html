@@ -127,6 +127,31 @@
   }
   .invBtn:hover { filter: brightness(1.15); }
   .invEmpty { color: #7ba889; font-size: 12.5px; font-style: italic; padding: 8px 0; }
+
+  #classRow { display: flex; gap: 10px; margin-bottom: 18px; }
+  .classCard {
+    width: 122px; padding: 10px 8px; border-radius: 12px; cursor: pointer; text-align: center;
+    background: rgba(0,0,0,.45); border: 2px solid rgba(134,239,172,.25); color: #c8ead2;
+    transition: transform .1s, border-color .1s, box-shadow .1s; user-select: none;
+  }
+  .classCard:hover { transform: translateY(-3px); border-color: rgba(134,239,172,.7); }
+  .classCard.sel { border-color: #fbbf24; box-shadow: 0 0 18px rgba(251,191,36,.45); background: rgba(40,26,6,.65); }
+  .classCard .cIcon { font-size: 30px; }
+  .classCard .cName { font-weight: 800; font-size: 14px; margin-top: 4px; color: #fde68a; }
+  .classCard .cSkill { font-size: 10.5px; color: #a7f3c9; margin-top: 2px; font-weight: 700; }
+  .classCard .cDesc { font-size: 10px; color: #8fbf9d; margin-top: 5px; line-height: 1.45; }
+
+  #skillSlot {
+    position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); z-index: 10;
+    width: 64px; height: 64px; border-radius: 14px; pointer-events: none; user-select: none;
+    background: rgba(6,14,9,.78); border: 2px solid rgba(251,191,36,.55); overflow: visible;
+    box-shadow: 0 4px 16px rgba(0,0,0,.5); display: none; text-align: center;
+  }
+  #skillLabel { position: absolute; top: -17px; left: 50%; transform: translateX(-50%); font-size: 10px; color: #fde68a; font-weight: 800; white-space: nowrap; text-shadow: 0 1px 2px #000; }
+  #skillIcon { font-size: 26px; line-height: 38px; display: block; }
+  #skillKey { font-size: 10px; font-weight: 800; color: #fde68a; display: block; }
+  #skillCdWrap { position: absolute; inset: 0; border-radius: 12px; overflow: hidden; }
+  #skillCd { position: absolute; left: 0; bottom: 0; width: 100%; height: 0%; background: rgba(0,0,0,.74); }
 </style>
 </head>
 <body>
@@ -136,11 +161,12 @@
   <canvas id="emblem" width="140" height="140"></canvas>
   <h1>EMBERVALE</h1>
   <h2>ONLINE &nbsp;•&nbsp; A REAL-TIME BROWSER MMORPG</h2>
+  <div id="classRow"></div>
   <input id="nameInput" maxlength="14" placeholder="Enter your hero name" autocomplete="off">
   <button id="playBtn">⚔ ENTER WORLD ⚔</button>
   <div id="loginStatus"></div>
   <div class="help">
-    <b>WASD / Arrows</b> — move &nbsp;•&nbsp; <b>Space / Click</b> — AoE attack &nbsp;•&nbsp; <b>Enter</b> — chat &nbsp;•&nbsp; <b>M</b> — mute<br>
+    <b>WASD / Arrows</b> — move &nbsp;•&nbsp; <b>Space / Click</b> — attack &nbsp;•&nbsp; <b>Q / Right-click</b> — class skill &nbsp;•&nbsp; <b>Enter</b> — chat &nbsp;•&nbsp; <b>M</b> — mute<br>
     <b>I</b> — inventory &nbsp;•&nbsp; <b>E</b> — buy potion at the shop in town<br>
     Slay monsters for gold and loot, level up — reach <b>Lv 5</b> to grow wings — and hunt the boss <b>Embermaw</b>. Progress auto-saves.
   </div>
@@ -162,6 +188,7 @@
 <div id="online" style="display:none"></div>
 <div id="hint" style="display:none">WASD move • Space/Click attack • Enter chat • M mute<br>I inventory • E shop</div>
 <div id="prompt"></div>
+<div id="skillSlot"><span id="skillLabel"></span><span id="skillIcon"></span><span id="skillKey">Q</span><div id="skillCdWrap"><div id="skillCd"></div></div></div>
 <div id="deadOverlay">YOU DIED — RESPAWNING...</div>
 
 <div id="invPanel">
@@ -207,6 +234,15 @@ let shake = { t0: -1e9, mag: 0 };
 let redFlash = -1e9;
 let shopNear = false;
 let myInv = { inv: [], equip: { weapon: null, armor: null }, gold: 0 };
+let myClass = 'knight';
+let skillCdUntil = 0;
+const arrows = [];
+const CLASS_UI = {
+  knight: { icon: '⚔️', name: 'Knight', skill: 'Whirlwind', cd: 6, desc: 'Tanky melee. Skill hits every foe around you.' },
+  mage:   { icon: '🔮', name: 'Mage', skill: 'Nova', cd: 8, desc: 'Fragile, huge damage. Skill: arcane nova around you.' },
+  archer: { icon: '🏹', name: 'Archer', skill: 'Volley', cd: 5, desc: 'Fast. Skill: arrows pierce up to 5 foes ahead.' },
+  cleric: { icon: '✨', name: 'Cleric', skill: 'Heal', cd: 10, desc: 'Support. Skill: instantly restore 60% HP.' },
+};
 
 function hash2(x, y) {
   let h = (x * 374761393 + y * 668265263) | 0;
@@ -673,10 +709,10 @@ function toggleMute() {
   feed(Music.muted ? 'Sound muted (M to unmute)' : 'Sound on', false);
 }
 
-function connect(name) {
+function connect(name, cls) {
   const proto = location.protocol === 'https:' ? 'wss://' : 'ws://';
   ws = new WebSocket(proto + location.host);
-  ws.onopen = () => ws.send(JSON.stringify({ t: 'join', name }));
+  ws.onopen = () => ws.send(JSON.stringify({ t: 'join', name, cls }));
   ws.onmessage = (e) => {
     let msg;
     try { msg = JSON.parse(e.data); } catch { return; }
@@ -704,7 +740,10 @@ function handle(msg) {
       obstacles = msg.obstacles || [];
       joined = true;
       document.getElementById('login').style.display = 'none';
-      for (const id of ['hud', 'minimapWrap', 'online', 'hint']) document.getElementById(id).style.display = 'block';
+      for (const id of ['hud', 'minimapWrap', 'online', 'hint', 'skillSlot']) document.getElementById(id).style.display = 'block';
+      const cu = CLASS_UI[myClass];
+      document.getElementById('skillIcon').textContent = cu.icon;
+      document.getElementById('skillLabel').textContent = cu.skill.toUpperCase();
       break;
     case 'inv':
       myInv = msg;
@@ -758,6 +797,34 @@ function burst(x, y, n, color, speed, size, grav) {
 }
 function addShake(mag) { shake = { t0: performance.now(), mag }; }
 
+function skillFx(ev, pl) {
+  if (!pl) return;
+  const now = performance.now();
+  const isMe = ev.id === myId;
+  if (ev.sk === 'whirl') {
+    rings.push({ x: pl.x, y: pl.y, t0: now, max: 125, color: 'rgba(147,197,253,' });
+    burst(pl.x, pl.y - 10, 22, '#bfdbfe', 6, 4, 0.1);
+    noise(0.22, 800, 0.09);
+    tone(220, 0.2, 'sawtooth', 0.05, 110);
+    if (isMe) addShake(4);
+  } else if (ev.sk === 'nova') {
+    rings.push({ x: pl.x, y: pl.y, t0: now, max: 175, color: 'rgba(251,146,60,' });
+    burst(pl.x, pl.y - 10, 32, '#fb923c', 7, 5, 0.1);
+    burst(pl.x, pl.y - 10, 14, '#fde047', 4, 3, 0.06);
+    noise(0.32, 500, 0.13);
+    tone(70, 0.32, 'sawtooth', 0.09, 38);
+    if (isMe) addShake(7);
+  } else if (ev.sk === 'volley') {
+    arrows.push({ x: pl.x, y: pl.y, ang: Math.atan2(pl.fy || 0, pl.fx || 1), t0: now });
+    noise(0.16, 2600, 0.07);
+    tone(660, 0.1, 'square', 0.04, 990);
+  } else if (ev.sk === 'heal') {
+    rings.push({ x: pl.x, y: pl.y, t0: now, max: 110, color: 'rgba(74,222,128,' });
+    burst(pl.x, pl.y - 10, 18, '#4ade80', 2.2, 3.5, -0.05);
+    tone(520, 0.25, 'sine', 0.07, 880);
+  }
+}
+
 function handleEvent(ev) {
   const me = players.get(myId);
   switch (ev.k) {
@@ -794,13 +861,22 @@ function handleEvent(ev) {
       feed(`Slain ${ev.name}  (+${ev.xp} XP)`, false);
       break;
     }
+    case 'skill': {
+      const pl = players.get(ev.id);
+      if (ev.id === myId) skillCdUntil = performance.now() + ev.cd * 1000;
+      skillFx(ev, pl);
+      break;
+    }
     case 'hurt':
       tone(90, 0.18, 'sawtooth', 0.06, 55);
       noise(0.12, 500, 0.08);
       redFlash = performance.now();
       addShake(3);
       feed(`Hit by ${ev.from} for ${ev.dmg}`, true);
-      if (me) floaters.push({ x: me.x, y: me.y - 42, text: '-' + ev.dmg, color: '#ef4444', t0: performance.now() });
+      if (me) {
+        me.flash = performance.now();
+        floaters.push({ x: me.x, y: me.y - 42, text: '-' + ev.dmg, color: '#ef4444', t0: performance.now() });
+      }
       break;
     case 'level':
       [440, 554, 659, 880].forEach((f, i) => setTimeout(() => tone(f, 0.14, 'square', 0.05), i * 90));
@@ -945,13 +1021,35 @@ const nameInput = document.getElementById('nameInput');
 const chatInput = document.getElementById('chatInput');
 let chatOpen = false;
 
+function renderClassRow() {
+  const row = document.getElementById('classRow');
+  row.innerHTML = '';
+  for (const key of Object.keys(CLASS_UI)) {
+    const c = CLASS_UI[key];
+    const card = document.createElement('div');
+    card.className = 'classCard' + (key === myClass ? ' sel' : '');
+    card.innerHTML = `<div class="cIcon">${c.icon}</div><div class="cName">${c.name}</div><div class="cSkill">${c.skill} · ${c.cd}s</div><div class="cDesc">${c.desc}</div>`;
+    card.addEventListener('click', () => {
+      myClass = key;
+      try { localStorage.setItem('ev_class', key); } catch {}
+      renderClassRow();
+    });
+    row.appendChild(card);
+  }
+}
+try { myClass = localStorage.getItem('ev_class') || 'knight'; } catch {}
+if (!CLASS_UI[myClass]) myClass = 'knight';
+try { nameInput.value = localStorage.getItem('ev_name') || ''; } catch {}
+renderClassRow();
+
 document.getElementById('playBtn').addEventListener('click', () => {
   audioInit();
   if (AC && AC.state === 'suspended') AC.resume();
   musicStart();
   const name = nameInput.value.trim() || 'Wanderer';
+  try { localStorage.setItem('ev_name', name); } catch {}
   document.getElementById('loginStatus').textContent = 'Connecting...';
-  connect(name);
+  connect(name, myClass);
 });
 nameInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') document.getElementById('playBtn').click();
@@ -982,6 +1080,7 @@ window.addEventListener('keydown', (e) => {
     case 'KeyA': case 'ArrowLeft': keys.l = 1; e.preventDefault(); break;
     case 'KeyD': case 'ArrowRight': keys.r = 1; e.preventDefault(); break;
     case 'Space': doAttack(); e.preventDefault(); break;
+    case 'KeyQ': doSkill(); e.preventDefault(); break;
     case 'KeyI': case 'KeyB': toggleInv(); e.preventDefault(); break;
     case 'KeyM': toggleMute(); e.preventDefault(); break;
     case 'KeyE':
@@ -1005,9 +1104,12 @@ window.addEventListener('keyup', (e) => {
   }
 });
 
-canvas.addEventListener('mousedown', () => {
-  if (joined && !chatOpen) doAttack();
+canvas.addEventListener('mousedown', (e) => {
+  if (!joined || chatOpen) return;
+  if (e.button === 2) doSkill();
+  else doAttack();
 });
+canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
 function doAttack() {
   if (!ws || ws.readyState !== 1) return;
@@ -1018,6 +1120,12 @@ function doAttack() {
     rings.push({ x: me.x, y: me.y, t0: performance.now(), max: 92 });
     noise(0.12, 1300, 0.07);
   }
+}
+
+function doSkill() {
+  if (!ws || ws.readyState !== 1) return;
+  if (performance.now() < skillCdUntil) return;
+  ws.send(JSON.stringify({ t: 'skill' }));
 }
 
 setInterval(() => {
@@ -1141,9 +1249,10 @@ function drawPlayer(p, now) {
   ctx.font = 'bold 12px system-ui';
   ctx.strokeStyle = 'rgba(0,0,0,.8)';
   ctx.lineWidth = 3;
-  ctx.strokeText(p.n, p.x, p.y - 44);
+  const label = (CLASS_UI[p.cls] ? CLASS_UI[p.cls].icon + ' ' : '') + p.n;
+  ctx.strokeText(label, p.x, p.y - 44);
   ctx.fillStyle = '#fff';
-  ctx.fillText(p.n, p.x, p.y - 44);
+  ctx.fillText(label, p.x, p.y - 44);
   if (p.level >= 5) {
     ctx.font = 'bold 10px system-ui';
     ctx.strokeText('✦ Lv' + p.level, p.x, p.y - 57);
@@ -1223,7 +1332,8 @@ function drawRings(now) {
     const age = (now - r.t0) / 260;
     if (age >= 1) { rings.splice(i, 1); continue; }
     const rad = 12 + age * (r.max - 12);
-    ctx.strokeStyle = `rgba(253,224,71,${0.8 * (1 - age)})`;
+    const col = r.color || 'rgba(253,224,71,';
+    ctx.strokeStyle = `${col}${0.8 * (1 - age)})`;
     ctx.lineWidth = 3.5 * (1 - age) + 1;
     ctx.beginPath();
     ctx.arc(r.x, r.y, rad, 0, 7);
@@ -1245,6 +1355,34 @@ function drawFloaters(now) {
     ctx.fillStyle = f.color;
     ctx.fillText(f.text, f.x, f.y - age * 38);
     ctx.globalAlpha = 1;
+  }
+}
+
+function drawArrows(now) {
+  for (let i = arrows.length - 1; i >= 0; i--) {
+    const a = arrows[i];
+    const age = (now - a.t0) / 380;
+    if (age >= 1) { arrows.splice(i, 1); continue; }
+    const len = 235 * (1 - age * 0.15);
+    ctx.save();
+    ctx.globalAlpha = 1 - age;
+    ctx.strokeStyle = '#e2e8f0';
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    for (let k = -1; k <= 1; k++) {
+      const px = Math.cos(a.ang + Math.PI / 2) * k * 9;
+      const py = Math.sin(a.ang + Math.PI / 2) * k * 9;
+      const x0 = a.x + px, y0 = a.y - 20 + py;
+      const x1 = a.x + Math.cos(a.ang) * len + px, y1 = a.y - 20 + Math.sin(a.ang) * len + py;
+      ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+      ctx.fillStyle = '#f8fafc';
+      ctx.beginPath();
+      ctx.moveTo(x1 + Math.cos(a.ang) * 8, y1 + Math.sin(a.ang) * 8);
+      ctx.lineTo(x1 - Math.cos(a.ang + 0.4) * 7, y1 - Math.sin(a.ang + 0.4) * 7);
+      ctx.lineTo(x1 - Math.cos(a.ang - 0.4) * 7, y1 - Math.sin(a.ang - 0.4) * 7);
+      ctx.closePath(); ctx.fill();
+    }
+    ctx.restore();
   }
 }
 
@@ -1287,6 +1425,10 @@ function updateHud() {
   } else {
     bb.style.display = 'none';
   }
+  const cdEl = document.getElementById('skillCd');
+  const cdTotal = (CLASS_UI[myClass] ? CLASS_UI[myClass].cd : 6) * 1000;
+  const cdLeft = skillCdUntil - performance.now();
+  cdEl.style.height = cdLeft > 0 ? Math.min(100, cdLeft / cdTotal * 100) + '%' : '0%';
   shopNear = !!(me.a && Math.hypot(me.x - SHOP.x, me.y - SHOP.y) < 130);
   const prompt = document.getElementById('prompt');
   if (shopNear) {
@@ -1368,6 +1510,7 @@ function frame(now) {
   for (const d of drawables) d.f();
 
   drawRings(now);
+  drawArrows(now);
   drawParticles();
   drawFloaters(now);
 

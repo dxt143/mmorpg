@@ -30,6 +30,13 @@ const LOOT_TABLE = {
   5: { gold: [22, 40], w: { name: 'Steel Blade', power: 18 }, a: { name: 'Chain Mail', power: 38 }, wc: 0.15, ac: 0.15 },
 };
 
+const CLASSES = {
+  knight: { name: 'Knight', icon: '⚔️', hp: 150, atk: 11, speed: 210, skillName: 'Whirlwind', skill: { kind: 'whirl', cd: 6, mult: 1.3, range: 105 }, desc: 'Tanky melee. Whirlwind hits every foe around you.' },
+  mage:   { name: 'Mage', icon: '🔮', hp: 85, atk: 19, speed: 225, skillName: 'Nova', skill: { kind: 'nova', cd: 8, mult: 1.7, range: 150 }, desc: 'Fragile, huge damage. Nova: arcane explosion around you.' },
+  archer: { name: 'Archer', icon: '🏹', hp: 105, atk: 14, speed: 245, skillName: 'Volley', skill: { kind: 'volley', cd: 5, mult: 1.0, range: 230, maxTargets: 5 }, desc: 'Fast. Volley: arrows pierce up to 5 foes ahead of you.' },
+  cleric: { name: 'Cleric', icon: '✨', hp: 120, atk: 10, speed: 220, skillName: 'Heal', skill: { kind: 'heal', cd: 10, frac: 0.6 }, desc: 'Support. Heal: instantly restore 60% of max HP.' },
+};
+
 function mulberry32(seed) {
   let a = seed >>> 0;
   return function () {
@@ -69,7 +76,7 @@ try {
 
 function saveDB() {
   for (const p of players.values()) {
-    db[p.name.toLowerCase()] = { name: p.name, level: p.level, xp: Math.round(p.xp), gold: p.gold, inv: p.inv, equip: p.equip };
+    db[p.name.toLowerCase()] = { name: p.name, cls: p.cls, level: p.level, xp: Math.round(p.xp), gold: p.gold, inv: p.inv, equip: p.equip };
   }
   try {
     fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -87,9 +94,9 @@ process.on('SIGTERM', () => { saveDB(); process.exit(0); });
 function xpNext(level) {
   return Math.floor(40 * Math.pow(level, 1.6));
 }
-function playerMaxHp(level) { return 100 + (level - 1) * 25; }
-function playerDamage(level) { return 10 + (level - 1) * 6; }
-function playerSpeed(level) { return 230 + (level - 1) * 3; }
+function playerMaxHp(level, cls) { return CLASSES[cls].hp + (level - 1) * 22; }
+function playerDamage(level, cls) { return CLASSES[cls].atk + (level - 1) * 5; }
+function playerSpeed(level, cls) { return CLASSES[cls].speed + (level - 1) * 2; }
 
 function dist(ax, ay, bx, by) { return Math.hypot(ax - bx, ay - by); }
 function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
@@ -185,24 +192,26 @@ function hueFor(name) {
 }
 
 function recomputeStats(p) {
-  p.maxHp = playerMaxHp(p.level) + (p.equip.armor ? p.equip.armor.power : 0);
-  p.atk = playerDamage(p.level) + (p.equip.weapon ? p.equip.weapon.power : 0);
+  p.maxHp = playerMaxHp(p.level, p.cls) + (p.equip.armor ? p.equip.armor.power : 0);
+  p.atk = playerDamage(p.level, p.cls) + (p.equip.weapon ? p.equip.weapon.power : 0);
   if (p.hp > p.maxHp) p.hp = p.maxHp;
 }
 
-function addPlayer(client, name) {
+function addPlayer(client, name, cls) {
   const clean = uniqueName(name);
   const saved = db[clean.toLowerCase()];
   const a = rng() * Math.PI * 2;
   const p = {
     id: client.id, name: clean, color: hueFor(clean),
+    cls: CLASSES[cls] ? cls : (saved && CLASSES[saved.cls] ? saved.cls : 'knight'),
     x: SPAWN.x + Math.cos(a) * 40, y: SPAWN.y + Math.sin(a) * 40,
     hp: 100, maxHp: 100, atk: 10, level: 1, xp: 0, gold: 0,
     inv: [], equip: { weapon: null, armor: null },
-    atkCd: 0, input: { u: 0, d: 0, l: 0, r: 0 }, fx: 1, fy: 0,
+    atkCd: 0, skillCd: 0, input: { u: 0, d: 0, l: 0, r: 0 }, fx: 1, fy: 0,
     alive: true, lastChat: 0,
   };
   if (saved) {
+    p.cls = CLASSES[saved.cls] ? saved.cls : p.cls;
     p.level = clamp(saved.level | 0, 1, 60);
     p.xp = clamp(Math.round(Number(saved.xp) || 0), 0, 1e9);
     p.gold = clamp(Math.round(Number(saved.gold) || 0), 0, 1e9);
@@ -406,7 +415,7 @@ function step(dt) {
       const len = Math.hypot(dx, dy);
       dx /= len; dy /= len;
       p.fx = dx; p.fy = dy;
-      const sp = playerSpeed(p.level) * dt;
+      const sp = playerSpeed(p.level, p.cls) * dt;
       p.x += dx * sp;
       p.y += dy * sp;
     }
@@ -430,7 +439,7 @@ function snapshot() {
   const pl = [];
   for (const p of players.values()) {
     pl.push({
-      id: p.id, n: p.name, x: Math.round(p.x), y: Math.round(p.y),
+      id: p.id, n: p.name, cls: p.cls, x: Math.round(p.x), y: Math.round(p.y),
       hp: Math.round(p.hp), maxHp: p.maxHp, level: p.level, xp: Math.round(p.xp),
       xn: xpNext(p.level), c: p.color, a: p.alive, fx: +p.fx.toFixed(2), fy: +p.fy.toFixed(2),
       g: p.gold, atk: Math.round(p.atk), ew: !!p.equip.weapon,
@@ -486,10 +495,15 @@ function handleMessage(client, text) {
 
   if (msg.t === 'join') {
     if (p) return;
-    const np = addPlayer(client, msg.name);
-    send(client, { t: 'welcome', id: np.id, world: WORLD, spawn: SPAWN, shop: SHOP, obstacles });
+    const np = addPlayer(client, msg.name, msg.cls);
+    const classesMeta = {};
+    for (const k of Object.keys(CLASSES)) {
+      const c = CLASSES[k];
+      classesMeta[k] = { name: c.name, icon: c.icon, desc: c.desc, skillName: c.skillName, cd: c.skill.cd };
+    }
+    send(client, { t: 'welcome', id: np.id, world: WORLD, spawn: SPAWN, shop: SHOP, obstacles, classes: classesMeta });
     sendInv(np);
-    sysChat(`${np.name} entered Embervale`);
+    sysChat(`${np.name} the ${CLASSES[np.cls].name} entered Embervale`);
     return;
   }
   if (!p) return;
@@ -501,6 +515,40 @@ function handleMessage(client, text) {
     case 'attack':
       playerAttack(p);
       break;
+    case 'skill': {
+      if (!p.alive) break;
+      const cls = CLASSES[p.cls];
+      if (!cls) break;
+      if (p.skillCd > serverTime) { send(client, { t: 'ev', k: 'err', m: 'Skill on cooldown' }); break; }
+      const sk = cls.skill;
+      p.skillCd = serverTime + sk.cd * 1000;
+      broadcast({ t: 'ev', k: 'skill', id: p.id, sk: sk.kind, cd: sk.cd, cls: p.cls });
+      if (sk.kind === 'whirl' || sk.kind === 'nova') {
+        const dmg = p.atk * sk.mult * (0.9 + rng() * 0.2);
+        for (const m of mobs.values()) {
+          if (m.respawnAt) continue;
+          if (dist(p.x, p.y, m.x, m.y) < sk.range) damageMob(m, dmg, p);
+        }
+      } else if (sk.kind === 'volley') {
+        const targets = [];
+        for (const m of mobs.values()) {
+          if (m.respawnAt) continue;
+          const d = dist(p.x, p.y, m.x, m.y);
+          if (d > sk.range) continue;
+          const dot = ((m.x - p.x) * p.fx + (m.y - p.y) * p.fy) / (d || 1);
+          if (dot > 0.35) targets.push({ m, d });
+        }
+        targets.sort((a, b) => a.d - b.d);
+        for (const t of targets.slice(0, sk.maxTargets)) {
+          damageMob(t.m, p.atk * sk.mult * (0.9 + rng() * 0.2), p);
+        }
+      } else if (sk.kind === 'heal') {
+        const heal = Math.round(p.maxHp * sk.frac);
+        p.hp = Math.min(p.maxHp, p.hp + heal);
+        send(client, { t: 'ev', k: 'heal', n: heal, skill: true });
+      }
+      break;
+    }
     case 'chat': {
       const now = Date.now();
       if (now - p.lastChat < 250) return;

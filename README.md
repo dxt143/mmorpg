@@ -21,9 +21,14 @@ Environment variables:
 
 ## How to play
 
-- Enter a hero name and click **ENTER WORLD**
+- Pick one of **4 classes** and a hero name, then click **ENTER WORLD**:
+  - ⚔️ **Knight** — 150 HP tank; skill **Whirlwind** (6s): heavy damage to every foe around you
+  - 🔮 **Mage** — 85 HP glass cannon, highest ATK; skill **Nova** (8s): big arcane explosion around you
+  - 🏹 **Archer** — fast, 245 speed; skill **Volley** (5s): arrows pierce up to 5 foes ahead
+  - ✨ **Cleric** — support; skill **Heal** (10s): instantly restore 60% max HP
 - **WASD / arrow keys** — move
-- **Space or left-click** — AoE sword swing (hits every monster in range, with a shockwave ring)
+- **Space or left-click** — AoE attack (hits every monster in range, with a shockwave ring)
+- **Q or right-click** — class skill (cooldown shown in the bottom-center slot)
 - **Enter** — chat with other players, **Esc** — cancel
 - **M** — mute/unmute the generated music + sound effects
 - **I / B** — open inventory; click **Equip** on weapons/armor or **Use** on potions
@@ -35,7 +40,7 @@ Environment variables:
   Death respawns you at town with a small XP penalty.
 - The world boss **Embermaw** (top-center HP bar) spawns in the wilds, respawns
   90 s after being slain, and drops epic loot (Dragonfang, Emberplate).
-- Progress (level, XP, gold, inventory, equipment) **auto-saves** to
+- Progress (class, level, XP, gold, inventory, equipment) **auto-saves** to
   `data/players.json` every 10 s and on shutdown — rejoin with the same name to
   continue where you left off.
 
