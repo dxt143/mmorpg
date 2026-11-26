@@ -311,17 +311,14 @@ function damagePlayer(p, dmg, mob) {
 
 function playerAttack(p) {
   if (!p.alive || p.atkCd > 0) return;
-  let best = null, bestD = 82;
-  for (const m of mobs.values()) {
-    if (m.respawnAt) continue;
-    const d = dist(p.x, p.y, m.x, m.y);
-    if (d < bestD) { bestD = d; best = m; }
-  }
   p.atkCd = 0.45;
-  if (!best) return;
+  broadcast({ t: 'ev', k: 'swing', id: p.id });
   const crit = rng() < 0.12;
   const dmg = p.atk * (0.85 + rng() * 0.3) * (crit ? 2 : 1);
-  damageMob(best, dmg, p);
+  for (const m of mobs.values()) {
+    if (m.respawnAt) continue;
+    if (dist(p.x, p.y, m.x, m.y) < 82) damageMob(m, dmg, p);
+  }
 }
 
 function applyLoot(p, l) {

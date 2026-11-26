@@ -23,10 +23,12 @@ Environment variables:
 
 - Enter a hero name and click **ENTER WORLD**
 - **WASD / arrow keys** — move
-- **Space or left-click** — attack the nearest monster in range (highlighted in red)
+- **Space or left-click** — AoE sword swing (hits every monster in range, with a shockwave ring)
 - **Enter** — chat with other players, **Esc** — cancel
+- **M** — mute/unmute the generated music + sound effects
 - **I / B** — open inventory; click **Equip** on weapons/armor or **Use** on potions
 - **E** — buy a Health Potion (25 gold) at the shop stall in town
+- Reach **level 5** to grow golden wings
 - Monsters (slimes, boars, wolves) wander, chase, and fight back. Kills drop
   **gold and loot** (weapons, armor, potions — common/rare/epic) that you pick up
   by walking over it. XP levels you up (+max HP, +damage); HP regenerates over time.
@@ -54,11 +56,13 @@ persistence across a full server restart.
   handshake/framing, 30 Hz simulation (movement, collision, mob AI, combat, XP,
   loot, shop, boss, regen, respawns), 15 Hz JSON snapshots broadcast to all clients,
   and JSON-file persistence of player accounts.
-- `public/index.html` — client: canvas renderer (terrain, obstacles, shop NPC,
-  ground loot, entities with HP bars and name tags, damage floaters, attack
-  slashes), client-side interpolation, HUD (HP/XP/level/ATK/gold), inventory
-  panel, chat box, event feed, boss HP bar, live minimap, and WebAudio sound
-  effects.
+- `public/index.html` — client: all art is generated in-engine at load (offscreen
+  sprite atlas: chibi heroes with helmets/armor/swords, winged forms at Lv 5+,
+  slime/boar/wolf/boss sprites, trees, rocks, shop stall, loot, textured ground),
+  plus particle bursts, hit flashes, screen shake, AoE rings, dynamic lighting,
+  damage floaters, HUD (HP/XP/level/ATK/gold), inventory panel, chat, boss bar,
+  minimap, and a fully procedural WebAudio soundscape (generated music loop +
+  synthesized SFX, M to mute). Zero image/audio files, zero dependencies.
 - Protocol is JSON over WebSocket: client sends `join` / `input` / `attack` /
   `chat` / `equip` / `use` / `buy`; server sends `welcome` / `st` (snapshot) /
   `inv` (private inventory) / `chat` / `ev` (events).
